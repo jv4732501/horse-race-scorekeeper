@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Horse Race Game — Scorekeeper</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1>🐎 Horse Race Game <span class="subtitle">Scorekeeper</span></h1>
+</header>
+
+<!-- SETUP SCREEN -->
+<section id="setup-screen" class="screen">
+  <div class="panel">
+    <h2>Add Players</h2>
+    <form id="add-player-form" class="add-player-row">
+      <input id="player-name-input" type="text" placeholder="Player name" autocomplete="off" maxlength="20">
+      <button type="submit">Add Player</button>
+    </form>
+    <ul id="player-chip-list" class="chip-list"></ul>
+    <p id="setup-hint" class="hint">Add at least 2 players to start.</p>
+    <button id="start-session-btn" class="primary-btn" disabled>Start Session</button>
+  </div>
+</section>
+
+<!-- GAME SCREEN -->
+<section id="game-screen" class="screen hidden">
+
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="status-label">Round</span>
+      <span id="round-number" class="status-value">1</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Pot</span>
+      <span id="pot-value" class="status-value pot">$0.00</span>
+    </div>
+    <div class="status-item phase-item">
+      <span id="phase-banner" class="phase-banner">Tap a horse to start the first scratch</span>
+    </div>
+  </div>
+
+  <div class="grid-wrapper">
+    <table id="game-grid">
+      <thead>
+        <tr id="grid-header-row">
+          <th class="player-col-header">Player</th>
+          <!-- horse header cells injected -->
+          <th class="round-net-header">Round Net</th>
+          <th class="balance-header">Balance</th>
+        </tr>
+      </thead>
+      <tbody id="grid-body">
+        <!-- player rows injected -->
+      </tbody>
+    </table>
+  </div>
+
+  <div class="action-bar">
+    <button id="cancel-btn" class="secondary-btn hidden">Cancel</button>
+    <button id="confirm-btn" class="primary-btn hidden">Confirm</button>
+    <button id="next-round-btn" class="primary-btn hidden">Start Next Round</button>
+    <button id="undo-btn" class="secondary-btn" disabled>Undo Last Action</button>
+  </div>
+
+  <div class="history-panel">
+    <h2>Round History</h2>
+    <ul id="history-list" class="history-list"></ul>
+  </div>
+
+</section>
+
+<script src="script.js"></script>
+</body>
+</html>
