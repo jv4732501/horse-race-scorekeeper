@@ -445,7 +445,7 @@
     hitGroup.className = 'chip-group';
     const hitLabel = document.createElement('div');
     hitLabel.className = 'chip-group-label';
-    hitLabel.textContent = 'Re-scratch (rolled a dead horse)';
+    hitLabel.textContent = 'Re-scratch';
     hitGroup.appendChild(hitLabel);
     const hitRow = document.createElement('div');
     hitRow.className = 'chip-row';
