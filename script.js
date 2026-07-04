@@ -176,11 +176,19 @@
     render();
   }
 
+  // Pre-race scratches and the winner payout must account for every copy of
+  // that number's cards (they're being fully settled/discarded). A race hit
+  // re-charges a horse whose cards were already fully accounted for at its
+  // original scratch, so it doesn't need the full count again.
+  function requiresFullCount(mode) {
+    return mode !== 'race-hit';
+  }
+
   function confirmActiveColumn() {
     if (!state.activeColumn) return;
-    if (totalPendingCount() !== maxCardsPerNumber()) return; // must account for every copy first
-    pushUndo();
     const { number, mode, costPerCard } = state.activeColumn;
+    if (requiresFullCount(mode) && totalPendingCount() !== maxCardsPerNumber()) return;
+    pushUndo();
     const entries = { ...state.pendingEntries };
 
     if (mode === 'winner') {
@@ -473,11 +481,17 @@
 
     const total = totalPendingCount();
     const required = maxCardsPerNumber();
-    const complete = total === required;
+    const needsFull = requiresFullCount(state.activeColumn.mode);
+    const complete = !needsFull || total === required;
 
     const progress = document.createElement('div');
-    progress.className = 'picker-progress' + (complete ? ' complete' : '');
-    progress.textContent = `${total} of ${required} card${required === 1 ? '' : 's'} assigned`;
+    if (needsFull) {
+      progress.className = 'picker-progress' + (complete ? ' complete' : '');
+      progress.textContent = `${total} of ${required} card${required === 1 ? '' : 's'} assigned`;
+    } else {
+      progress.className = 'picker-progress info';
+      progress.textContent = `${total} card${total === 1 ? '' : 's'} assigned`;
+    }
     actionPanel.appendChild(progress);
 
     const actions = document.createElement('div');
