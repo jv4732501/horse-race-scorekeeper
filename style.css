@@ -248,12 +248,6 @@ table#game-grid {
   font-weight: 500;
 }
 
-.horse-header-btn.active {
-  background: var(--active);
-  border-color: #b8860b;
-  box-shadow: 0 0 0 2px rgba(184,134,11,0.4);
-}
-
 .horse-header-btn.scratched {
   background: #e6e2d6;
   color: #a3a3a3;
@@ -264,6 +258,27 @@ table#game-grid {
 .horse-header-btn.winner-pick {
   background: #ffd9d9;
   border-color: var(--red);
+}
+
+.horse-header-btn.scratched.hittable {
+  background: #ffe6c2;
+  color: var(--ink);
+  border-color: #c97a17;
+  cursor: pointer;
+}
+
+.horse-header-btn.active {
+  background: var(--active);
+  border-color: #b8860b;
+  box-shadow: 0 0 0 2px rgba(184,134,11,0.4);
+}
+
+/* .scratched.hittable has higher specificity than .active alone, so it needs
+   an explicit override to still show the active highlight when selected. */
+.horse-header-btn.scratched.hittable.active {
+  background: var(--active);
+  border-color: #b8860b;
+  box-shadow: 0 0 0 2px rgba(184,134,11,0.4);
 }
 
 .horse-header-btn:disabled {
