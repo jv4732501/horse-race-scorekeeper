@@ -1,5 +1,5 @@
 (function () {
-  const SCRATCH_TIERS = [5, 10, 15, 20]; // cents per matching card, by scratch order (1st..4th)
+  const DEFAULT_SCRATCH_UNIT_CENTS = 10; // $0.10 -> tiers become 10/20/30/40 cents
   const MAX_CARDS_PER_NUMBER = 4; // only 4 cards of any given number exist in the deck
   const HORSES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q'];
   const ORDER_NAMES = ['1st', '2nd', '3rd', '4th'];
@@ -14,6 +14,7 @@
   const playerNameInput = document.getElementById('player-name-input');
   const chipList = document.getElementById('player-chip-list');
   const startBtn = document.getElementById('start-session-btn');
+  const scratchUnitInput = document.getElementById('scratch-unit-input');
 
   const roundNumberEl = document.getElementById('round-number');
   const potValueEl = document.getElementById('pot-value');
@@ -36,11 +37,18 @@
     renderSetup();
   });
 
+  function parseScratchUnitCents() {
+    const dollars = parseFloat(scratchUnitInput.value);
+    if (!isFinite(dollars) || dollars <= 0) return DEFAULT_SCRATCH_UNIT_CENTS;
+    return Math.round(dollars * 100);
+  }
+
   startBtn.addEventListener('click', () => {
     state = {
       players: setupPlayers.map((p) => ({ id: p.id, name: p.name, total: 0 })),
       round: 1,
       pot: 0,
+      scratchUnit: parseScratchUnitCents(), // cents; scratch tiers are this ×1/×2/×3/×4
       scratches: [], // { number, order, costPerCard, entries: {playerId: count} }
       raceHits: [], // { number, costPerCard, entries: {playerId: count} } -- horse re-hit during the race
       winner: null, // { number, entries: {playerId: count}, payouts: {playerId: cents} }
@@ -107,7 +115,8 @@
   }
 
   function currentScratchTier() {
-    return SCRATCH_TIERS[Math.min(state.scratches.length, SCRATCH_TIERS.length - 1)];
+    const order = Math.min(state.scratches.length + 1, 4);
+    return state.scratchUnit * order;
   }
 
   function totalPendingCount() {
@@ -288,10 +297,10 @@
     if (state.activeColumn) {
       const { number, mode } = state.activeColumn;
       if (mode === 'scratch') {
-        return `Scratching ${number} — ${currentScratchTier()}¢/card — tap players holding it, then Confirm`;
+        return `Scratching ${number} — ${formatCents(currentScratchTier())}/card — tap players holding it, then Confirm`;
       }
       if (mode === 'race-hit') {
-        return `Race hit on ${number} — ${state.activeColumn.costPerCard}¢/card — tap players holding it, then Confirm`;
+        return `Race hit on ${number} — ${formatCents(state.activeColumn.costPerCard)}/card — tap players holding it, then Confirm`;
       }
       return `Winner: ${number} — tap players holding it, then Confirm Payout`;
     }
@@ -299,7 +308,7 @@
       return 'Race underway — tap the winning horse below, or tap a scratched horse if it comes up again';
     }
     const n = state.scratches.length + 1;
-    return `Scratch ${n} of 4 — tap the horse that was scratched (${SCRATCH_TIERS[n - 1]}¢/card)`;
+    return `Scratch ${n} of 4 — tap the horse that was scratched (${formatCents(state.scratchUnit * n)}/card)`;
   }
 
   function renderBalances() {
@@ -507,13 +516,13 @@
     state.scratches.forEach((s) => {
       entries.push({
         cls: 'delta-neg',
-        text: `Scratch ${ORDER_NAMES[s.order - 1]} (${s.costPerCard}¢/card): horse ${s.number} — ${describeEntries(s.entries, s.costPerCard)}`
+        text: `Scratch ${ORDER_NAMES[s.order - 1]} (${formatCents(s.costPerCard)}/card): horse ${s.number} — ${describeEntries(s.entries, s.costPerCard)}`
       });
     });
     state.raceHits.forEach((h) => {
       entries.push({
         cls: 'delta-neg',
-        text: `Race hit (${h.costPerCard}¢/card): horse ${h.number} — ${describeEntries(h.entries, h.costPerCard)}`
+        text: `Race hit (${formatCents(h.costPerCard)}/card): horse ${h.number} — ${describeEntries(h.entries, h.costPerCard)}`
       });
     });
     if (state.winner) {

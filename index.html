@@ -22,6 +22,14 @@
     </form>
     <ul id="player-chip-list" class="chip-list"></ul>
     <p id="setup-hint" class="hint">Add at least 2 players to start.</p>
+
+    <h2>Scratch Cost</h2>
+    <div class="scratch-unit-row">
+      <label for="scratch-unit-input">Base unit per card ($)</label>
+      <input id="scratch-unit-input" type="number" step="0.01" min="0.01" value="0.10">
+    </div>
+    <p class="hint">The 4 pre-race scratches charge this unit ×1/×2/×3/×4 per matching card (default $0.10 → 10¢/20¢/30¢/40¢).</p>
+
     <button id="start-session-btn" class="primary-btn" disabled>Start Session</button>
   </div>
 </section>
