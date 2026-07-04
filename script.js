@@ -439,7 +439,6 @@
       winnerRow.appendChild(btn);
     });
     winnerGroup.appendChild(winnerRow);
-    actionPanel.appendChild(winnerGroup);
 
     const hitGroup = document.createElement('div');
     hitGroup.className = 'chip-group';
@@ -463,7 +462,9 @@
         hitRow.appendChild(btn);
       });
     hitGroup.appendChild(hitRow);
+
     actionPanel.appendChild(hitGroup);
+    actionPanel.appendChild(winnerGroup);
   }
 
   function renderPlayerPicker() {
