@@ -2,6 +2,7 @@
   const SCRATCH_TIERS = [5, 10, 15, 20]; // cents per matching card, by scratch order (1st..4th)
   const MAX_CARDS_PER_NUMBER = 4; // only 4 cards of any given number exist in the deck
   const HORSES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q'];
+  const ORDER_NAMES = ['1st', '2nd', '3rd', '4th'];
 
   let state = null;
   let nextPlayerId = 1;
@@ -16,15 +17,12 @@
 
   const roundNumberEl = document.getElementById('round-number');
   const potValueEl = document.getElementById('pot-value');
-  const phaseBannerEl = document.getElementById('phase-banner');
-  const gridHeaderRow = document.getElementById('grid-header-row');
-  const gridBody = document.getElementById('grid-body');
-  const cancelBtn = document.getElementById('cancel-btn');
-  const confirmBtn = document.getElementById('confirm-btn');
-  const nextRoundBtn = document.getElementById('next-round-btn');
   const undoBtn = document.getElementById('undo-btn');
+  const balancesBody = document.getElementById('balances-body');
+  const phaseBannerEl = document.getElementById('phase-banner');
+  const actionPanel = document.getElementById('action-panel');
+  const roundLogList = document.getElementById('round-log-list');
   const historyList = document.getElementById('history-list');
-  const roundNetHeader = document.querySelector('.round-net-header');
 
   // ---------------- SETUP SCREEN ----------------
 
@@ -46,8 +44,8 @@
       scratches: [], // { number, order, costPerCard, entries: {playerId: count} }
       raceHits: [], // { number, costPerCard, entries: {playerId: count} } -- horse re-hit during the race
       winner: null, // { number, entries: {playerId: count}, payouts: {playerId: cents} }
-      activeColumn: null, // { number, mode: 'scratch' | 'race-hit' | 'winner' }
-      pendingEntries: {}, // playerId -> count, for the currently active column
+      activeColumn: null, // { number, mode: 'scratch' | 'race-hit' | 'winner', costPerCard? }
+      pendingEntries: {}, // playerId -> count, for the currently active picker
       history: [], // completed rounds
       undoStack: []
     };
@@ -78,7 +76,7 @@
     startBtn.disabled = setupPlayers.length < 2;
   }
 
-  // ---------------- GAME LOGIC ----------------
+  // ---------------- GAME LOGIC (data only, no DOM) ----------------
 
   function formatCents(cents, withSign) {
     const rounded = Math.round(cents || 0);
@@ -236,7 +234,7 @@
   }
 
   // Magnitude (always positive) of what tapping `count` cards would cost/pay
-  // under the currently active column's mode.
+  // under the currently active picker's mode.
   function activeCardCost(count) {
     if (!state.activeColumn || !count) return 0;
     const { mode, costPerCard } = state.activeColumn;
@@ -253,11 +251,20 @@
     return state.activeColumn.mode === 'winner' ? amount : -amount;
   }
 
+  function describeEntries(entries, costPerCard, payouts) {
+    const parts = Object.entries(entries).map(([playerId, count]) => {
+      const player = state.players.find((p) => p.id === Number(playerId));
+      const name = player ? player.name : '?';
+      if (payouts) {
+        return `${name} x${count} (${formatCents(payouts[playerId] || 0, true)})`;
+      }
+      return `${name} x${count} (${formatCents(-(costPerCard * count))})`;
+    });
+    return parts.length ? parts.join(', ') : 'no cards held';
+  }
+
   // ---------------- RENDER ----------------
 
-  cancelBtn.addEventListener('click', cancelActiveColumn);
-  confirmBtn.addEventListener('click', confirmActiveColumn);
-  nextRoundBtn.addEventListener('click', startNextRound);
   undoBtn.addEventListener('click', undo);
 
   function render() {
@@ -266,9 +273,9 @@
     potValueEl.textContent = formatCents(state.pot);
     phaseBannerEl.textContent = phaseText();
 
-    renderHeader();
-    renderBody();
-    renderActionBar();
+    renderBalances();
+    renderActionPanel();
+    renderRoundLog();
     renderHistory();
 
     undoBtn.disabled = state.undoStack.length === 0;
@@ -289,162 +296,250 @@
       return `Winner: ${number} — tap players holding it, then Confirm Payout`;
     }
     if (isRacingPhase()) {
-      return 'Race underway — tap the winning horse, or tap a scratched horse if it comes up again';
+      return 'Race underway — tap the winning horse below, or tap a scratched horse if it comes up again';
     }
     const n = state.scratches.length + 1;
-    return `Scratch ${n} of 4 — tap a horse (${SCRATCH_TIERS[n - 1]}¢/card), then tap players holding it`;
+    return `Scratch ${n} of 4 — tap the horse that was scratched (${SCRATCH_TIERS[n - 1]}¢/card)`;
   }
 
-  function renderHeader() {
-    gridHeaderRow.querySelectorAll('.horse-header-cell').forEach((c) => c.remove());
-
-    const scratched = scratchedNumbers();
-    const racing = isRacingPhase();
-    const roundOver = !!state.winner;
-
-    HORSES.forEach((number) => {
-      const th = document.createElement('th');
-      th.className = 'horse-header-cell';
-      const btn = document.createElement('button');
-      btn.className = 'horse-header-btn';
-      btn.type = 'button';
-
-      const isScratched = scratched.has(number);
-      const scratchInfo = state.scratches.find((s) => s.number === number);
-      const isActive = state.activeColumn && state.activeColumn.number === number;
-      const isWinnerNumber = state.winner && state.winner.number === number;
-      const hitCount = state.raceHits.filter((h) => h.number === number).length;
-
-      let badgeText = '';
-      let clickable = false;
-
-      if (isWinnerNumber) {
-        badgeText = 'WINNER';
-        btn.classList.add('winner-pick');
-      } else if (isScratched) {
-        const orderNames = ['1st', '2nd', '3rd', '4th'];
-        badgeText = `scratched ${orderNames[scratchInfo.order - 1]}` + (hitCount ? ` • hit x${hitCount}` : '');
-        btn.classList.add('scratched');
-        if (racing && !roundOver) {
-          // Race is underway: this dead horse can still be rolled again, charging
-          // whoever holds it — distinct from picking the race winner below.
-          btn.classList.add('hittable');
-          clickable = true;
-        }
-      } else if (racing) {
-        btn.classList.add('winner-pick');
-        clickable = !roundOver;
-      } else {
-        clickable = true; // pre-race, unscratched horse — tap to run the next scratch
-      }
-
-      if (isActive) btn.classList.add('active');
-
-      btn.innerHTML = `<span>${number}</span>` + (badgeText ? `<span class="order-badge">${badgeText}</span>` : '');
-
-      btn.disabled = !clickable;
-      if (clickable) btn.addEventListener('click', () => selectColumn(number));
-
-      th.appendChild(btn);
-      gridHeaderRow.insertBefore(th, roundNetHeader);
-    });
-  }
-
-  function renderBody() {
-    gridBody.innerHTML = '';
-
+  function renderBalances() {
+    balancesBody.innerHTML = '';
     state.players.forEach((player) => {
+      const net = roundNetForPlayer(player.id) + activeColumnPreview(player.id);
+      const balance = player.total + net;
+
       const tr = document.createElement('tr');
 
       const nameTd = document.createElement('td');
-      nameTd.className = 'player-name-cell';
+      nameTd.className = 'bp-name-cell';
       nameTd.textContent = player.name;
-      tr.appendChild(nameTd);
 
-      HORSES.forEach((number) => {
-        const td = document.createElement('td');
-        const btn = document.createElement('button');
-        btn.className = 'card-cell-btn';
-        btn.type = 'button';
-
-        const isActiveColumn = state.activeColumn && state.activeColumn.number === number;
-        const scratchInfo = state.scratches.find((s) => s.number === number);
-        const isWinnerColumn = state.winner && state.winner.number === number;
-
-        if (isActiveColumn) {
-          const count = state.pendingEntries[player.id] || 0;
-          btn.classList.add('enabled');
-          if (count > 0) {
-            btn.classList.add('has-count');
-            const amount = activeCardCost(count);
-            btn.innerHTML = `<span class="count-badge">${count} card${count > 1 ? 's' : ''}</span><span class="amount-badge">${formatCents(amount)}</span>`;
-          } else {
-            btn.innerHTML = `<span class="count-badge">tap</span>`;
-          }
-          btn.addEventListener('click', () => cycleCellCount(player.id));
-        } else if (isWinnerColumn && state.winner.entries[player.id]) {
-          const count = state.winner.entries[player.id];
-          const amount = state.winner.payouts[player.id];
-          btn.disabled = true;
-          btn.classList.add('has-count');
-          btn.innerHTML = `<span class="count-badge">${count}</span><span class="amount-badge">${formatCents(amount, true)}</span>`;
-        } else {
-          // Combine the original pre-race scratch charge with any later race-hit
-          // charges on the same horse -- both bill at that horse's standing rate.
-          const scratchCount = (scratchInfo && scratchInfo.entries[player.id]) || 0;
-          const raceHitCount = state.raceHits.reduce(
-            (sum, h) => (h.number === number ? sum + (h.entries[player.id] || 0) : sum),
-            0
-          );
-          const totalCount = scratchCount + raceHitCount;
-          if (totalCount > 0) {
-            const cost = scratchInfo.costPerCard;
-            btn.disabled = true;
-            btn.innerHTML = `<span class="count-badge">${totalCount}</span><span class="amount-badge">${formatCents(-(cost * totalCount))}</span>`;
-          } else {
-            btn.disabled = true;
-            btn.innerHTML = `<span class="count-badge">–</span>`;
-          }
-        }
-
-        td.appendChild(btn);
-        tr.appendChild(td);
-      });
-
-      const net = roundNetForPlayer(player.id) + activeColumnPreview(player.id);
       const netTd = document.createElement('td');
       netTd.className = 'net-cell ' + (net > 0 ? 'positive' : net < 0 ? 'negative' : '');
       netTd.textContent = formatCents(net, true);
-      tr.appendChild(netTd);
 
-      const balance = player.total + net;
       const balTd = document.createElement('td');
       balTd.className = 'balance-cell ' + (balance > 0 ? 'positive' : balance < 0 ? 'negative' : '');
       balTd.textContent = formatCents(balance, true);
-      tr.appendChild(balTd);
 
-      gridBody.appendChild(tr);
+      tr.appendChild(nameTd);
+      tr.appendChild(netTd);
+      tr.appendChild(balTd);
+      balancesBody.appendChild(tr);
     });
   }
 
-  function renderActionBar() {
-    const roundOver = !!state.winner;
-    cancelBtn.classList.add('hidden');
-    confirmBtn.classList.add('hidden');
-    nextRoundBtn.classList.add('hidden');
+  function makeHorseChip(number, extraClass) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'horse-chip' + (extraClass ? ' ' + extraClass : '');
+    if (state.activeColumn && state.activeColumn.number === number) btn.classList.add('active');
+    const span = document.createElement('span');
+    span.textContent = number;
+    btn.appendChild(span);
+    return btn;
+  }
 
-    if (roundOver) {
-      nextRoundBtn.classList.remove('hidden');
-    } else if (state.activeColumn) {
-      cancelBtn.classList.remove('hidden');
-      confirmBtn.classList.remove('hidden');
-      confirmBtn.textContent =
-        state.activeColumn.mode === 'scratch'
-          ? 'Confirm Scratch'
-          : state.activeColumn.mode === 'race-hit'
-          ? 'Confirm Race Hit'
-          : 'Confirm Payout';
+  function renderActionPanel() {
+    actionPanel.innerHTML = '';
+
+    if (state.winner) {
+      renderPayoutSummary();
+      return;
     }
+    if (state.activeColumn) {
+      renderPlayerPicker();
+      return;
+    }
+    if (isRacingPhase()) {
+      renderRacingChips();
+      return;
+    }
+    renderScratchChips();
+  }
+
+  function renderScratchChips() {
+    const scratched = scratchedNumbers();
+    const remaining = HORSES.filter((n) => !scratched.has(n));
+    const row = document.createElement('div');
+    row.className = 'chip-row';
+    remaining.forEach((number) => {
+      const btn = makeHorseChip(number);
+      btn.addEventListener('click', () => selectColumn(number));
+      row.appendChild(btn);
+    });
+    actionPanel.appendChild(row);
+  }
+
+  function renderRacingChips() {
+    const scratched = scratchedNumbers();
+    const remaining = HORSES.filter((n) => !scratched.has(n));
+
+    const winnerGroup = document.createElement('div');
+    winnerGroup.className = 'chip-group';
+    const winnerLabel = document.createElement('div');
+    winnerLabel.className = 'chip-group-label';
+    winnerLabel.textContent = 'Pick the winner';
+    winnerGroup.appendChild(winnerLabel);
+    const winnerRow = document.createElement('div');
+    winnerRow.className = 'chip-row';
+    remaining.forEach((number) => {
+      const btn = makeHorseChip(number, 'winner-chip');
+      btn.addEventListener('click', () => selectColumn(number));
+      winnerRow.appendChild(btn);
+    });
+    winnerGroup.appendChild(winnerRow);
+    actionPanel.appendChild(winnerGroup);
+
+    const hitGroup = document.createElement('div');
+    hitGroup.className = 'chip-group';
+    const hitLabel = document.createElement('div');
+    hitLabel.className = 'chip-group-label';
+    hitLabel.textContent = 'Re-scratch (rolled a dead horse)';
+    hitGroup.appendChild(hitLabel);
+    const hitRow = document.createElement('div');
+    hitRow.className = 'chip-row';
+    state.scratches
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .forEach((s) => {
+        const btn = makeHorseChip(s.number, 'hit-chip');
+        const hitCount = state.raceHits.filter((h) => h.number === s.number).length;
+        const badge = document.createElement('span');
+        badge.className = 'chip-badge';
+        badge.textContent = ORDER_NAMES[s.order - 1] + (hitCount ? ` • x${hitCount}` : '');
+        btn.appendChild(badge);
+        btn.addEventListener('click', () => selectColumn(s.number));
+        hitRow.appendChild(btn);
+      });
+    hitGroup.appendChild(hitRow);
+    actionPanel.appendChild(hitGroup);
+  }
+
+  function renderPlayerPicker() {
+    const list = document.createElement('ul');
+    list.className = 'player-picker-list';
+
+    state.players.forEach((player) => {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'player-picker-row';
+      const count = state.pendingEntries[player.id] || 0;
+      if (count > 0) btn.classList.add('has-count');
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'ppr-name';
+      nameSpan.textContent = player.name;
+
+      const countSpan = document.createElement('span');
+      countSpan.className = 'ppr-count';
+      countSpan.textContent =
+        count > 0 ? `${count} card${count > 1 ? 's' : ''} — ${formatCents(activeCardCost(count))}` : 'tap to add';
+
+      btn.appendChild(nameSpan);
+      btn.appendChild(countSpan);
+      btn.addEventListener('click', () => cycleCellCount(player.id));
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+
+    actionPanel.appendChild(list);
+
+    const actions = document.createElement('div');
+    actions.className = 'picker-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'secondary-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', cancelActiveColumn);
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'primary-btn';
+    confirmBtn.textContent =
+      state.activeColumn.mode === 'scratch'
+        ? 'Confirm Scratch'
+        : state.activeColumn.mode === 'race-hit'
+        ? 'Confirm Race Hit'
+        : 'Confirm Payout';
+    confirmBtn.addEventListener('click', confirmActiveColumn);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    actionPanel.appendChild(actions);
+  }
+
+  function renderPayoutSummary() {
+    const summary = document.createElement('div');
+    summary.className = 'payout-summary';
+    let any = false;
+    state.players.forEach((player) => {
+      const count = state.winner.entries[player.id];
+      if (!count) return;
+      any = true;
+      const amount = state.winner.payouts[player.id];
+      const line = document.createElement('div');
+      line.className = 'delta-pos';
+      line.textContent = `${player.name}: ${count} card${count > 1 ? 's' : ''} → ${formatCents(amount, true)}`;
+      summary.appendChild(line);
+    });
+    if (!any) {
+      const line = document.createElement('div');
+      line.textContent = 'No one held a matching card for this horse.';
+      summary.appendChild(line);
+    }
+    actionPanel.appendChild(summary);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'primary-btn next-round-btn';
+    nextBtn.textContent = 'Start Next Round';
+    nextBtn.addEventListener('click', startNextRound);
+    actionPanel.appendChild(nextBtn);
+  }
+
+  function renderRoundLog() {
+    roundLogList.innerHTML = '';
+    const entries = [];
+
+    state.scratches.forEach((s) => {
+      entries.push({
+        cls: 'delta-neg',
+        text: `Scratch ${ORDER_NAMES[s.order - 1]} (${s.costPerCard}¢/card): horse ${s.number} — ${describeEntries(s.entries, s.costPerCard)}`
+      });
+    });
+    state.raceHits.forEach((h) => {
+      entries.push({
+        cls: 'delta-neg',
+        text: `Race hit (${h.costPerCard}¢/card): horse ${h.number} — ${describeEntries(h.entries, h.costPerCard)}`
+      });
+    });
+    if (state.winner) {
+      entries.push({
+        cls: 'delta-pos',
+        text: `Winner: horse ${state.winner.number} — ${describeEntries(state.winner.entries, null, state.winner.payouts)}`
+      });
+    }
+
+    if (entries.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'history-entry';
+      li.textContent = 'No scratches logged yet this round.';
+      roundLogList.appendChild(li);
+      return;
+    }
+
+    entries.forEach((entry) => {
+      const li = document.createElement('li');
+      li.className = 'history-entry';
+      const span = document.createElement('span');
+      span.className = entry.cls;
+      span.textContent = entry.text;
+      li.appendChild(span);
+      roundLogList.appendChild(li);
+    });
   }
 
   function renderHistory() {
@@ -480,16 +575,9 @@
         const hitsDiv = document.createElement('div');
         hitsDiv.className = 'deltas race-hits-summary';
         h.raceHits.forEach((hit) => {
-          const names =
-            Object.entries(hit.entries)
-              .map(([pid, count]) => {
-                const player = state.players.find((p) => p.id === Number(pid));
-                return `${player ? player.name : '?'} x${count}`;
-              })
-              .join(', ') || 'no cards held';
           const span = document.createElement('span');
           span.className = 'delta-neg';
-          span.textContent = `Race hit on ${hit.number}: ${names} (${formatCents(hit.costPerCard)}/card)`;
+          span.textContent = `Race hit on ${hit.number}: ${describeEntries(hit.entries, hit.costPerCard)}`;
           hitsDiv.appendChild(span);
         });
         li.appendChild(hitsDiv);

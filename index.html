@@ -38,32 +38,29 @@
       <span class="status-label">Pot</span>
       <span id="pot-value" class="status-value pot">$0.00</span>
     </div>
-    <div class="status-item phase-item">
-      <span id="phase-banner" class="phase-banner">Tap a horse to start the first scratch</span>
-    </div>
+    <button id="undo-btn" class="secondary-btn undo-btn" disabled>Undo</button>
   </div>
 
-  <div class="grid-wrapper">
-    <table id="game-grid">
+  <div class="balances-panel">
+    <table id="balances-table">
       <thead>
-        <tr id="grid-header-row">
-          <th class="player-col-header">Player</th>
-          <!-- horse header cells injected -->
-          <th class="round-net-header">Round Net</th>
-          <th class="balance-header">Balance</th>
+        <tr>
+          <th class="bp-name-header">Player</th>
+          <th>Round Net</th>
+          <th>Balance</th>
         </tr>
       </thead>
-      <tbody id="grid-body">
-        <!-- player rows injected -->
-      </tbody>
+      <tbody id="balances-body"></tbody>
     </table>
   </div>
 
-  <div class="action-bar">
-    <button id="cancel-btn" class="secondary-btn hidden">Cancel</button>
-    <button id="confirm-btn" class="primary-btn hidden">Confirm</button>
-    <button id="next-round-btn" class="primary-btn hidden">Start Next Round</button>
-    <button id="undo-btn" class="secondary-btn" disabled>Undo Last Action</button>
+  <div id="phase-banner" class="phase-banner"></div>
+
+  <div id="action-panel" class="action-panel"></div>
+
+  <div class="round-log-panel">
+    <h2>This Round</h2>
+    <ul id="round-log-list" class="round-log-list"></ul>
   </div>
 
   <div class="history-panel">

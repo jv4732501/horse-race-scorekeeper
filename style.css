@@ -177,9 +177,10 @@ button {
   color: #ffe58a;
 }
 
-.phase-item {
-  flex: 1;
-  min-width: 220px;
+.undo-btn {
+  margin-left: auto;
+  padding: 8px 12px;
+  font-size: 0.85rem;
 }
 
 .phase-banner {
@@ -188,140 +189,45 @@ button {
   background: rgba(255,255,255,0.08);
   padding: 8px 12px;
   border-radius: 8px;
-  display: inline-block;
+  margin-bottom: 14px;
 }
 
-.grid-wrapper {
-  overflow-x: auto;
+/* Player balances -- always visible, only 3 narrow columns so it never
+   needs horizontal scroll on a phone. */
+.balances-panel {
   background: rgba(0,0,0,0.15);
   border-radius: 10px;
   padding: 8px;
+  margin-bottom: 14px;
 }
 
-table#game-grid {
+table#balances-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 720px;
   background: var(--cream);
   color: var(--ink);
   border-radius: 8px;
   overflow: hidden;
 }
 
-#game-grid th, #game-grid td {
-  padding: 6px;
+#balances-table th, #balances-table td {
+  padding: 8px 6px;
   text-align: center;
   border: 1px solid #d8cfb8;
-}
-
-.player-col-header, .player-name-cell {
-  text-align: left !important;
-  padding-left: 10px !important;
-  min-width: 110px;
-  font-weight: 700;
-}
-
-.round-net-header, .balance-header {
-  min-width: 90px;
-  background: #ece2c6;
-}
-
-.horse-header-btn {
-  width: 100%;
-  min-width: 56px;
-  padding: 8px 4px;
-  background: #fff;
-  border: 2px solid #b8ab7f;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--ink);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.horse-header-btn .order-badge {
-  font-size: 0.65rem;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.horse-header-btn.scratched {
-  background: #e6e2d6;
-  color: #a3a3a3;
-  border-color: #cfc7ac;
-  cursor: default;
-}
-
-.horse-header-btn.winner-pick {
-  background: #ffd9d9;
-  border-color: var(--red);
-}
-
-.horse-header-btn.scratched.hittable {
-  background: #ffe6c2;
-  color: var(--ink);
-  border-color: #c97a17;
-  cursor: pointer;
-}
-
-.horse-header-btn.active {
-  background: var(--active);
-  border-color: #b8860b;
-  box-shadow: 0 0 0 2px rgba(184,134,11,0.4);
-}
-
-/* .scratched.hittable has higher specificity than .active alone, so it needs
-   an explicit override to still show the active highlight when selected. */
-.horse-header-btn.scratched.hittable.active {
-  background: var(--active);
-  border-color: #b8860b;
-  box-shadow: 0 0 0 2px rgba(184,134,11,0.4);
-}
-
-.horse-header-btn:disabled {
-  cursor: not-allowed;
-}
-
-.card-cell-btn {
-  width: 100%;
-  min-height: 40px;
-  background: #fdfaf0;
-  border: 1px solid #d8cfb8;
-  border-radius: 6px;
-  font-weight: 600;
-  color: var(--muted);
-  padding: 4px;
-}
-
-.card-cell-btn.enabled {
-  background: #fff;
-  border-color: #b8ab7f;
-  color: var(--ink);
-}
-
-.card-cell-btn.has-count {
-  background: #fff3c4;
-  border-color: #b8860b;
-  color: var(--ink);
-}
-
-.card-cell-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.card-cell-btn .count-badge {
-  display: block;
   font-size: 0.9rem;
 }
 
-.card-cell-btn .amount-badge {
-  display: block;
-  font-size: 0.7rem;
-  color: var(--muted);
+#balances-table th {
+  background: #ece2c6;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.bp-name-header, .bp-name-cell {
+  text-align: left !important;
+  padding-left: 10px !important;
+  font-weight: 700;
 }
 
 .net-cell.positive, .balance-cell.positive {
@@ -334,12 +240,147 @@ table#game-grid {
   font-weight: 700;
 }
 
-.action-bar {
+/* Action panel: horse chip picker or player picker, depending on phase */
+
+.action-panel {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+
+.chip-group + .chip-group {
+  margin-top: 14px;
+}
+
+.chip-group-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 8px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.horse-chip {
+  min-width: 52px;
+  padding: 10px 8px;
+  background: #fff;
+  border: 2px solid #b8ab7f;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.horse-chip .chip-badge {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: center;
+}
+
+.horse-chip.winner-chip {
+  background: #ffd9d9;
+  border-color: var(--red);
+}
+
+.horse-chip.hit-chip {
+  background: #ffe6c2;
+  border-color: #c97a17;
+}
+
+.horse-chip.active {
+  background: var(--active);
+  border-color: #b8860b;
+  box-shadow: 0 0 0 2px rgba(184,134,11,0.4);
+}
+
+.player-picker-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-picker-row {
+  width: 100%;
+  min-height: 48px;
+  background: #fff;
+  border: 1px solid #b8ab7f;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.player-picker-row.has-count {
+  background: #fff3c4;
+  border-color: #b8860b;
+}
+
+.ppr-name {
+  font-weight: 700;
+}
+
+.ppr-count {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.player-picker-row.has-count .ppr-count {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.picker-actions {
   display: flex;
   gap: 10px;
-  margin: 14px 0;
-  justify-content: flex-end;
-  flex-wrap: wrap;
+}
+
+.picker-actions button {
+  flex: 1;
+}
+
+.payout-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+
+.next-round-btn {
+  width: 100%;
+}
+
+.round-log-panel {
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+
+.round-log-panel h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
 }
 
 .history-panel {
@@ -353,7 +394,7 @@ table#game-grid {
   font-size: 1.1rem;
 }
 
-.history-list {
+.history-list, .round-log-list {
   list-style: none;
   margin: 0;
   padding: 0;
