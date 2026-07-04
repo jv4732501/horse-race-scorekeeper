@@ -142,24 +142,35 @@ button {
   margin: 0 0 12px;
 }
 
-.scratch-unit-row {
+.setup-number-row {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 6px;
 }
 
-.scratch-unit-row label {
+.setup-number-row label {
   font-weight: 600;
   font-size: 0.9rem;
 }
 
-.scratch-unit-row input {
+.setup-number-row input {
   width: 90px;
   padding: 8px 10px;
   font-size: 1rem;
   border: 1px solid #ccc;
   border-radius: 8px;
+}
+
+.picker-progress {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--red);
+  margin-bottom: 10px;
+}
+
+.picker-progress.complete {
+  color: var(--green);
 }
 
 /* GAME SCREEN */

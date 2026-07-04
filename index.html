@@ -24,11 +24,18 @@
     <p id="setup-hint" class="hint">Add at least 2 players to start.</p>
 
     <h2>Scratch Cost</h2>
-    <div class="scratch-unit-row">
+    <div class="setup-number-row">
       <label for="scratch-unit-input">Base unit per card ($)</label>
       <input id="scratch-unit-input" type="number" step="0.01" min="0.01" value="0.10">
     </div>
     <p class="hint">The 4 pre-race scratches charge this unit ×1/×2/×3/×4 per matching card (default $0.10 → 10¢/20¢/30¢/40¢).</p>
+
+    <h2>Decks</h2>
+    <div class="setup-number-row">
+      <label for="decks-input">Number of decks</label>
+      <input id="decks-input" type="number" step="1" min="1" value="1">
+    </div>
+    <p class="hint">Each deck adds 4 more copies of every number card. With N decks, each horse number has 4×N cards in play, so scratch/winner card counts must add up to that total.</p>
 
     <button id="start-session-btn" class="primary-btn" disabled>Start Session</button>
   </div>

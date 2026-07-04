@@ -1,6 +1,6 @@
 (function () {
   const DEFAULT_SCRATCH_UNIT_CENTS = 10; // $0.10 -> tiers become 10/20/30/40 cents
-  const MAX_CARDS_PER_NUMBER = 4; // only 4 cards of any given number exist in the deck
+  const CARDS_PER_NUMBER_PER_DECK = 4; // one deck = 4 suits = 4 copies of each number card
   const HORSES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q'];
   const ORDER_NAMES = ['1st', '2nd', '3rd', '4th'];
 
@@ -15,6 +15,7 @@
   const chipList = document.getElementById('player-chip-list');
   const startBtn = document.getElementById('start-session-btn');
   const scratchUnitInput = document.getElementById('scratch-unit-input');
+  const decksInput = document.getElementById('decks-input');
 
   const roundNumberEl = document.getElementById('round-number');
   const potValueEl = document.getElementById('pot-value');
@@ -43,12 +44,19 @@
     return Math.round(dollars * 100);
   }
 
+  function parseDecks() {
+    const n = parseInt(decksInput.value, 10);
+    if (!isFinite(n) || n < 1) return 1;
+    return n;
+  }
+
   startBtn.addEventListener('click', () => {
     state = {
       players: setupPlayers.map((p) => ({ id: p.id, name: p.name, total: 0 })),
       round: 1,
       pot: 0,
       scratchUnit: parseScratchUnitCents(), // cents; scratch tiers are this ×1/×2/×3/×4
+      decks: parseDecks(), // each deck = 4 copies of every number card
       scratches: [], // { number, order, costPerCard, entries: {playerId: count} }
       raceHits: [], // { number, costPerCard, entries: {playerId: count} } -- horse re-hit during the race
       winner: null, // { number, entries: {playerId: count}, payouts: {playerId: cents} }
@@ -119,6 +127,12 @@
     return state.scratchUnit * order;
   }
 
+  // Total copies of any given number card in play -- all of them must be
+  // accounted for across players before a scratch/race-hit/winner can confirm.
+  function maxCardsPerNumber() {
+    return CARDS_PER_NUMBER_PER_DECK * state.decks;
+  }
+
   function totalPendingCount() {
     return Object.values(state.pendingEntries).reduce((a, b) => a + b, 0);
   }
@@ -149,8 +163,9 @@
     if (!state.activeColumn) return;
     const current = state.pendingEntries[playerId] || 0;
     const otherTotal = totalPendingCount() - current;
+    const max = maxCardsPerNumber();
     let next = current + 1;
-    if (next > MAX_CARDS_PER_NUMBER || otherTotal + next > MAX_CARDS_PER_NUMBER) {
+    if (next > max || otherTotal + next > max) {
       next = 0;
     }
     if (next === 0) {
@@ -163,6 +178,7 @@
 
   function confirmActiveColumn() {
     if (!state.activeColumn) return;
+    if (totalPendingCount() !== maxCardsPerNumber()) return; // must account for every copy first
     pushUndo();
     const { number, mode, costPerCard } = state.activeColumn;
     const entries = { ...state.pendingEntries };
@@ -170,7 +186,7 @@
     if (mode === 'winner') {
       const payouts = {};
       Object.entries(entries).forEach(([playerId, count]) => {
-        payouts[playerId] = Math.round((state.pot * count) / MAX_CARDS_PER_NUMBER);
+        payouts[playerId] = Math.round((state.pot * count) / maxCardsPerNumber());
       });
       state.winner = { number, entries, payouts };
     } else {
@@ -249,7 +265,7 @@
     const { mode, costPerCard } = state.activeColumn;
     if (mode === 'scratch') return currentScratchTier() * count;
     if (mode === 'race-hit') return costPerCard * count;
-    return Math.round((state.pot * count) / MAX_CARDS_PER_NUMBER); // winner
+    return Math.round((state.pot * count) / maxCardsPerNumber()); // winner
   }
 
   function activeColumnPreview(playerId) {
@@ -455,6 +471,15 @@
 
     actionPanel.appendChild(list);
 
+    const total = totalPendingCount();
+    const required = maxCardsPerNumber();
+    const complete = total === required;
+
+    const progress = document.createElement('div');
+    progress.className = 'picker-progress' + (complete ? ' complete' : '');
+    progress.textContent = `${total} of ${required} card${required === 1 ? '' : 's'} assigned`;
+    actionPanel.appendChild(progress);
+
     const actions = document.createElement('div');
     actions.className = 'picker-actions';
 
@@ -467,6 +492,7 @@
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
     confirmBtn.className = 'primary-btn';
+    confirmBtn.disabled = !complete;
     confirmBtn.textContent =
       state.activeColumn.mode === 'scratch'
         ? 'Confirm Scratch'
@@ -483,22 +509,15 @@
   function renderPayoutSummary() {
     const summary = document.createElement('div');
     summary.className = 'payout-summary';
-    let any = false;
     state.players.forEach((player) => {
       const count = state.winner.entries[player.id];
       if (!count) return;
-      any = true;
       const amount = state.winner.payouts[player.id];
       const line = document.createElement('div');
       line.className = 'delta-pos';
       line.textContent = `${player.name}: ${count} card${count > 1 ? 's' : ''} → ${formatCents(amount, true)}`;
       summary.appendChild(line);
     });
-    if (!any) {
-      const line = document.createElement('div');
-      line.textContent = 'No one held a matching card for this horse.';
-      summary.appendChild(line);
-    }
     actionPanel.appendChild(summary);
 
     const nextBtn = document.createElement('button');
