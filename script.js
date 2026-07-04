@@ -58,7 +58,7 @@
       scratchUnit: parseScratchUnitCents(), // cents; scratch tiers are this ×1/×2/×3/×4
       decks: parseDecks(), // each deck = 4 copies of every number card
       scratches: [], // { number, order, costPerCard, entries: {playerId: count} }
-      raceHits: [], // { number, costPerCard, entries: {playerId: count} } -- horse re-hit during the race
+      raceHits: [], // { number, costPerCard, playerId } -- flat fee paid by the roller who hit a dead horse
       winner: null, // { number, entries: {playerId: count}, payouts: {playerId: cents} }
       activeColumn: null, // { number, mode: 'scratch' | 'race-hit' | 'winner', costPerCard? }
       pendingEntries: {}, // playerId -> count, for the currently active picker
@@ -127,8 +127,8 @@
     return state.scratchUnit * order;
   }
 
-  // Total copies of any given number card in play -- all of them must be
-  // accounted for across players before a scratch/race-hit/winner can confirm.
+  // Total copies of any given number card in play -- a pre-race scratch or
+  // winner payout must account for all of them across players before confirming.
   function maxCardsPerNumber() {
     return CARDS_PER_NUMBER_PER_DECK * state.decks;
   }
@@ -176,40 +176,48 @@
     render();
   }
 
-  // Pre-race scratches and the winner payout must account for every copy of
-  // that number's cards (they're being fully settled/discarded). A race hit
-  // re-charges a horse whose cards were already fully accounted for at its
-  // original scratch, so it doesn't need the full count again.
-  function requiresFullCount(mode) {
-    return mode !== 'race-hit';
+  // A race hit is picked from a single roller, so it toggles exclusively:
+  // tapping a different player replaces the previous selection.
+  function selectRoller(playerId) {
+    if (!state.activeColumn || state.activeColumn.mode !== 'race-hit') return;
+    const alreadySelected = !!state.pendingEntries[playerId];
+    state.pendingEntries = alreadySelected ? {} : { [playerId]: 1 };
+    render();
   }
 
   function confirmActiveColumn() {
     if (!state.activeColumn) return;
     const { number, mode, costPerCard } = state.activeColumn;
-    if (requiresFullCount(mode) && totalPendingCount() !== maxCardsPerNumber()) return;
-    pushUndo();
-    const entries = { ...state.pendingEntries };
 
-    if (mode === 'winner') {
-      const payouts = {};
-      Object.entries(entries).forEach(([playerId, count]) => {
-        payouts[playerId] = Math.round((state.pot * count) / maxCardsPerNumber());
-      });
-      state.winner = { number, entries, payouts };
+    if (mode === 'race-hit') {
+      // Flat fee paid by the one player who rolled the dead horse's number --
+      // not per-card, and not split across whoever holds matching cards.
+      if (totalPendingCount() !== 1) return;
+      pushUndo();
+      const rollerId = Number(Object.keys(state.pendingEntries)[0]);
+      state.pot += costPerCard;
+      state.raceHits.push({ number, costPerCard, playerId: rollerId });
     } else {
-      // 'scratch' (pre-race) or 'race-hit' (horse rolled again mid-race): both charge
-      // a per-card fee into the pot at that horse's standing scratch rate.
-      const cost = mode === 'scratch' ? currentScratchTier() : costPerCard;
-      let potAdd = 0;
-      Object.values(entries).forEach((count) => {
-        potAdd += cost * count;
-      });
-      state.pot += potAdd;
-      if (mode === 'scratch') {
-        state.scratches.push({ number, order: state.scratches.length + 1, costPerCard: cost, entries });
+      // 'scratch' (pre-race) or 'winner' payout: both must account for every
+      // copy of that number's cards across players before confirming.
+      if (totalPendingCount() !== maxCardsPerNumber()) return;
+      pushUndo();
+      const entries = { ...state.pendingEntries };
+
+      if (mode === 'winner') {
+        const payouts = {};
+        Object.entries(entries).forEach(([playerId, count]) => {
+          payouts[playerId] = Math.round((state.pot * count) / maxCardsPerNumber());
+        });
+        state.winner = { number, entries, payouts };
       } else {
-        state.raceHits.push({ number, costPerCard: cost, entries });
+        const cost = currentScratchTier();
+        let potAdd = 0;
+        Object.values(entries).forEach((count) => {
+          potAdd += cost * count;
+        });
+        state.pot += potAdd;
+        state.scratches.push({ number, order: state.scratches.length + 1, costPerCard: cost, entries });
       }
     }
 
@@ -256,8 +264,7 @@
       if (count) net -= s.costPerCard * count;
     });
     state.raceHits.forEach((h) => {
-      const count = h.entries[playerId];
-      if (count) net -= h.costPerCard * count;
+      if (h.playerId === playerId) net -= h.costPerCard;
     });
     if (state.winner) {
       const payout = state.winner.payouts[playerId];
@@ -296,6 +303,12 @@
     return parts.length ? parts.join(', ') : 'no cards held';
   }
 
+  function describeRaceHit(hit) {
+    const player = state.players.find((p) => p.id === hit.playerId);
+    const name = player ? player.name : '?';
+    return `${name} rolled it (${formatCents(-hit.costPerCard)})`;
+  }
+
   // ---------------- RENDER ----------------
 
   undoBtn.addEventListener('click', undo);
@@ -324,7 +337,7 @@
         return `Scratching ${number} — ${formatCents(currentScratchTier())}/card — tap players holding it, then Confirm`;
       }
       if (mode === 'race-hit') {
-        return `Race hit on ${number} — ${formatCents(state.activeColumn.costPerCard)}/card — tap players holding it, then Confirm`;
+        return `Race hit on ${number} — ${formatCents(state.activeColumn.costPerCard)} flat fee — tap the player who rolled it, then Confirm`;
       }
       return `Winner: ${number} — tap players holding it, then Confirm Payout`;
     }
@@ -381,7 +394,11 @@
       return;
     }
     if (state.activeColumn) {
-      renderPlayerPicker();
+      if (state.activeColumn.mode === 'race-hit') {
+        renderRollerPicker();
+      } else {
+        renderPlayerPicker();
+      }
       return;
     }
     if (isRacingPhase()) {
@@ -481,17 +498,11 @@
 
     const total = totalPendingCount();
     const required = maxCardsPerNumber();
-    const needsFull = requiresFullCount(state.activeColumn.mode);
-    const complete = !needsFull || total === required;
+    const complete = total === required;
 
     const progress = document.createElement('div');
-    if (needsFull) {
-      progress.className = 'picker-progress' + (complete ? ' complete' : '');
-      progress.textContent = `${total} of ${required} card${required === 1 ? '' : 's'} assigned`;
-    } else {
-      progress.className = 'picker-progress info';
-      progress.textContent = `${total} card${total === 1 ? '' : 's'} assigned`;
-    }
+    progress.className = 'picker-progress' + (complete ? ' complete' : '');
+    progress.textContent = `${total} of ${required} card${required === 1 ? '' : 's'} assigned`;
     actionPanel.appendChild(progress);
 
     const actions = document.createElement('div');
@@ -507,12 +518,67 @@
     confirmBtn.type = 'button';
     confirmBtn.className = 'primary-btn';
     confirmBtn.disabled = !complete;
-    confirmBtn.textContent =
-      state.activeColumn.mode === 'scratch'
-        ? 'Confirm Scratch'
-        : state.activeColumn.mode === 'race-hit'
-        ? 'Confirm Race Hit'
-        : 'Confirm Payout';
+    confirmBtn.textContent = state.activeColumn.mode === 'scratch' ? 'Confirm Scratch' : 'Confirm Payout';
+    confirmBtn.addEventListener('click', confirmActiveColumn);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    actionPanel.appendChild(actions);
+  }
+
+  // Race hit: single-select the one player who rolled the dead horse's
+  // number -- flat fee, no card counts, no multi-player accounting.
+  function renderRollerPicker() {
+    const cost = state.activeColumn.costPerCard;
+    const list = document.createElement('ul');
+    list.className = 'player-picker-list';
+
+    state.players.forEach((player) => {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'player-picker-row';
+      const selected = !!state.pendingEntries[player.id];
+      if (selected) btn.classList.add('has-count');
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'ppr-name';
+      nameSpan.textContent = player.name;
+
+      const infoSpan = document.createElement('span');
+      infoSpan.className = 'ppr-count';
+      infoSpan.textContent = selected ? `rolled it — ${formatCents(cost)}` : 'tap if they rolled it';
+
+      btn.appendChild(nameSpan);
+      btn.appendChild(infoSpan);
+      btn.addEventListener('click', () => selectRoller(player.id));
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+
+    actionPanel.appendChild(list);
+
+    const selected = totalPendingCount() === 1;
+
+    const progress = document.createElement('div');
+    progress.className = 'picker-progress' + (selected ? ' complete' : '');
+    progress.textContent = selected ? 'Roller selected' : 'Tap the player who rolled it';
+    actionPanel.appendChild(progress);
+
+    const actions = document.createElement('div');
+    actions.className = 'picker-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'secondary-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', cancelActiveColumn);
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'primary-btn';
+    confirmBtn.disabled = !selected;
+    confirmBtn.textContent = 'Confirm Race Hit';
     confirmBtn.addEventListener('click', confirmActiveColumn);
 
     actions.appendChild(cancelBtn);
@@ -555,7 +621,7 @@
     state.raceHits.forEach((h) => {
       entries.push({
         cls: 'delta-neg',
-        text: `Race hit (${formatCents(h.costPerCard)}/card): horse ${h.number} — ${describeEntries(h.entries, h.costPerCard)}`
+        text: `Race hit: horse ${h.number} — ${describeRaceHit(h)}`
       });
     });
     if (state.winner) {
@@ -619,7 +685,7 @@
         h.raceHits.forEach((hit) => {
           const span = document.createElement('span');
           span.className = 'delta-neg';
-          span.textContent = `Race hit on ${hit.number}: ${describeEntries(hit.entries, hit.costPerCard)}`;
+          span.textContent = `Race hit on ${hit.number}: ${describeRaceHit(hit)}`;
           hitsDiv.appendChild(span);
         });
         li.appendChild(hitsDiv);

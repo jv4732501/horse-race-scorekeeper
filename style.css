@@ -173,10 +173,6 @@ button {
   color: var(--green);
 }
 
-.picker-progress.info {
-  color: var(--muted);
-}
-
 /* GAME SCREEN */
 
 .status-bar {
