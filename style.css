@@ -400,6 +400,7 @@ table#balances-table {
 
 .next-round-btn {
   width: 100%;
+  color: var(--ink);
 }
 
 .round-log-panel {
